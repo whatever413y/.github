@@ -1,0 +1,32 @@
+# Checks a Dart/Flutter package: format, analyze, test (latest stable Flutter).
+name: Flutter package check
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: The package folder, relative to the repo root.
+        type: string
+        default: .
+      format-paths:
+        description: Paths `dart format` checks.
+        type: string
+        default: lib test
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter --version
+      - run: flutter pub get
+      - run: dart format --output=none --set-exit-if-changed ${{ inputs.format-paths }}
+      - run: flutter analyze
+      - run: flutter test

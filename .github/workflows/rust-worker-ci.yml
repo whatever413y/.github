@@ -1,0 +1,31 @@
+# Checks a Rust Cloudflare Worker (workers-rs): fmt, clippy for native and wasm32, native tests, and a
+# worker-build of the bundle (latest stable Rust).
+name: Rust Worker CI
+
+on:
+  workflow_call:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy (native and wasm32)
+        run: |
+          cargo clippy --all-targets -- -D warnings
+          cargo clippy --target wasm32-unknown-unknown -- -D warnings
+      - name: Test
+        run: cargo test
+      - name: Build the Worker bundle
+        run: |
+          cargo install worker-build --locked --version '^0.8'
+          worker-build --release

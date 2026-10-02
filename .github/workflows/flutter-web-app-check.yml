@@ -1,0 +1,26 @@
+# Checks a Flutter web app: format, analyze, tests (if any), and a release web build (latest stable Flutter).
+name: Flutter web app check
+
+on:
+  workflow_call:
+    inputs:
+      api-url:
+        description: API_URL compiled into the check build (any valid URL; the build is not deployed).
+        type: string
+        default: http://localhost:50000/api
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get # resolves the shared package from its pinned git tag
+      - run: dart format --output=none --set-exit-if-changed lib
+      - run: flutter analyze
+      - run: if [ -d test ]; then flutter test; fi
+      - name: Compile check (release web build)
+        run: flutter build web --release --dart-define=API_URL=${{ inputs.api-url }}
