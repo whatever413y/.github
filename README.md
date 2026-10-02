@@ -17,13 +17,15 @@ jobs:
 | `workers-deploy-api.yml` | deploy a Rust Worker, wait for `/health` to report the commit, move the `live` tag | `health-url` |
 | `workers-deploy-web.yml` | build a Flutter web app (with the repo variable `API_URL`), deploy it as a static-assets Worker, check `version.txt`, move `live` | `site-url` |
 | `d1-migrate.yml` | list or apply a D1 database's migrations in the `production-db` environment (approval) | `database`, `command` (`list` / `apply`) |
+| `terraform-check.yml` | a Terraform configuration: `fmt -check`, `init -backend=false`, `validate` (no credentials, no state) | `working-directory` (default `.`) |
 
 The deploy and migrate workflows run in the caller's `production` / `production-db` environments (secret
 `CLOUDFLARE_API_TOKEN`, variable `CLOUDFLARE_ACCOUNT_ID`; set up by m18-residences-infra), and the calling job needs
 `permissions: contents: write` to move the `live` tag (what is actually deployed). Callers must also pass
 `secrets: inherit`: a reusable workflow in another repo doesn't see the caller's environment secrets otherwise.
 
-Everything uses the latest stable Flutter and Rust.
+Everything uses the latest stable Flutter, Rust and Terraform. This repo's own workflows are checked by `lint.yml`
+(actionlint, with shellcheck) on every push.
 
 ## Releasing
 

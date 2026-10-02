@@ -1,0 +1,20 @@
+# This repo's own check: every workflow here must pass actionlint (which also runs shellcheck on run: steps).
+name: Lint workflows
+
+on:
+  push:
+    branches: [development, main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: actionlint
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+        run: |
+          bash <(curl -fsSL "https://raw.githubusercontent.com/rhysd/actionlint/v${ACTIONLINT_VERSION}/scripts/download-actionlint.bash") "$ACTIONLINT_VERSION"
+          ./actionlint -color

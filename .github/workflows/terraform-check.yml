@@ -1,0 +1,26 @@
+# Checks a Terraform configuration without credentials or state: fmt, init (no backend), validate.
+name: Terraform check
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: The Terraform root module, relative to the repo root.
+        type: string
+        default: .
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+      - run: terraform version
+      - run: terraform fmt -check -recursive -diff
+      - run: terraform init -backend=false -input=false
+      - run: terraform validate
