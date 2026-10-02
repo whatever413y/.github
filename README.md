@@ -20,7 +20,8 @@ jobs:
 
 The deploy and migrate workflows run in the caller's `production` / `production-db` environments (secret
 `CLOUDFLARE_API_TOKEN`, variable `CLOUDFLARE_ACCOUNT_ID`; set up by m18-residences-infra), and the calling job needs
-`permissions: contents: write` to move the `live` tag (what is actually deployed).
+`permissions: contents: write` to move the `live` tag (what is actually deployed). Callers must also pass
+`secrets: inherit`: a reusable workflow in another repo doesn't see the caller's environment secrets otherwise.
 
 Everything uses the latest stable Flutter and Rust.
 
