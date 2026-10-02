@@ -33,7 +33,7 @@ jobs:
           command: deploy --tag ${{ github.sha }} --message "${{ github.repository }}@${{ github.sha }}"
       - name: Wait until the new version answers
         run: |
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             version=$(curl -fsS "${{ inputs.health-url }}" | jq -r '.version // empty' || true)
             if [ "$version" = "${{ github.sha }}" ]; then echo "live: $version"; exit 0; fi
             echo "waiting (got '${version}')"; sleep 5

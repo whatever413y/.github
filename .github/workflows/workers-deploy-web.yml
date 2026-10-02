@@ -37,7 +37,7 @@ jobs:
           command: deploy --tag ${{ github.sha }} --message "${{ github.repository }}@${{ github.sha }}"
       - name: Wait until the site serves the new build
         run: |
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             served=$(curl -fsS "${{ inputs.site-url }}/version.txt" || true)
             if [ "$served" = "${{ github.sha }}" ]; then echo "live: $served"; exit 0; fi
             echo "waiting (got '${served}')"; sleep 5
