@@ -1,0 +1,45 @@
+# Deploys a Rust Cloudflare Worker (workers-rs) from the calling repo, waits until its health endpoint reports the
+# deployed commit, then moves the repo's `live` tag to that commit.
+# The calling repo needs: environment `production` with secret CLOUDFLARE_API_TOKEN, variable CLOUDFLARE_ACCOUNT_ID,
+# and `permissions: contents: write` on the calling job (to move the tag).
+name: Deploy a Rust Worker
+
+on:
+  workflow_call:
+    inputs:
+      health-url:
+        description: 'The deployed Worker''s health URL; it must answer {"version": "<commit>"}.'
+        type: string
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Install worker-build
+        run: cargo install worker-build --locked --version '^0.8'
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: '4.145.0'
+          command: deploy --tag ${{ github.sha }} --message "${{ github.repository }}@${{ github.sha }}"
+      - name: Wait until the new version answers
+        run: |
+          for i in $(seq 1 30); do
+            version=$(curl -fsS "${{ inputs.health-url }}" | jq -r '.version // empty' || true)
+            if [ "$version" = "${{ github.sha }}" ]; then echo "live: $version"; exit 0; fi
+            echo "waiting (got '${version}')"; sleep 5
+          done
+          echo "::error::${{ inputs.health-url }} never reported ${{ github.sha }}"; exit 1
+      - name: Move the live tag
+        run: |
+          git tag -f live "${{ github.sha }}"
+          git push -f origin refs/tags/live

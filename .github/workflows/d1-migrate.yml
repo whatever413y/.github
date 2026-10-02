@@ -1,0 +1,31 @@
+# Applies (or lists) a D1 database's pending migrations, from the calling repo's wrangler.jsonc, in the
+# `production-db` environment (required reviewer). The only path for production schema changes.
+# The calling repo needs: environment `production-db` with secret CLOUDFLARE_API_TOKEN, variable CLOUDFLARE_ACCOUNT_ID.
+name: D1 migrations
+
+on:
+  workflow_call:
+    inputs:
+      database:
+        description: The D1 database name (as in wrangler.jsonc).
+        type: string
+        required: true
+      command:
+        description: '`list` (pending migrations) or `apply`.'
+        type: string
+        default: list
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    environment: production-db
+    steps:
+      - name: Check the command
+        run: case "${{ inputs.command }}" in list|apply) ;; *) echo "::error::command must be list or apply"; exit 1 ;; esac
+      - uses: actions/checkout@v7
+      - uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: '4.145.0'
+          command: d1 migrations ${{ inputs.command }} ${{ inputs.database }} --remote
