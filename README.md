@@ -15,9 +15,9 @@ jobs:
 | `flutter-web-app-check.yml` | a Flutter web app: format, analyze, tests if any, release web build | `api-url` (compiled into the check build) |
 | `rust-worker-ci.yml` | a Rust Cloudflare Worker: fmt, clippy (native + wasm32), tests, `worker-build` | — |
 | `workers-deploy-api.yml` | deploy a Rust Worker, wait for `/health` to report the commit, move the `live` tag | `health-url`, `environment` (default `production`), `wrangler-env` (`--env`), `move-live` (default `true`) |
-| `workers-deploy-web.yml` | build a Flutter web app (with the repo variable `API_URL`), deploy it as a static-assets Worker, check `version.txt`, move `live` | `site-url` |
+| `workers-deploy-web.yml` | build a Flutter web app (with the repo variable `API_URL`), deploy it as a static-assets Worker, check `version.txt` (through Access with a service token if `CF_ACCESS_CLIENT_ID`/`_SECRET` are set), move `live` | `site-url` |
 | `d1-migrate.yml` | list or apply a D1 database's migrations, by default in the `production-db` environment (approval) | `database`, `command` (`list` / `apply`), `environment`, `wrangler-env` |
-| `workers-preview-web.yml` | build a Flutter web app and upload it as a preview alias of its Worker (`https://<alias>-<worker>.<subdomain>.workers.dev`; production untouched), check `version.txt` (through Access with a service token), optionally comment the link on a PR | `alias`, `worker`, `subdomain`, `environment` (default `development`), `pr-number` |
+| `workers-preview-web.yml` | build a Flutter web app and upload it as a preview alias of its Worker (`https://<alias>-<worker>.<subdomain>.workers.dev`; production untouched), check `version.txt` (through Access if `CF_ACCESS_CLIENT_ID`/`_SECRET` are set), optionally comment the link on a PR | `alias`, `worker`, `subdomain`, `environment` (default `development`), `pr-number` |
 | `terraform-check.yml` | a Terraform configuration: `fmt -check`, `init -backend=false`, `validate` (no credentials, no state) | `working-directory` (default `.`) |
 
 The deploy and migrate workflows run in the caller's `production` / `production-db` environments (secret

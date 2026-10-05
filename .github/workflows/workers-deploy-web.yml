@@ -1,7 +1,8 @@
 # Builds a Flutter web app and deploys it as a static-assets Cloudflare Worker (the repo's wrangler.jsonc), checks
 # the site serves the new build, then moves the repo's `live` tag to the commit.
 # The calling repo needs: environment `production` with secret CLOUDFLARE_API_TOKEN, variables CLOUDFLARE_ACCOUNT_ID
-# and API_URL (compiled into the build), and `permissions: contents: write` on the calling job.
+# and API_URL (compiled into the build), and `permissions: contents: write` on the calling job. If the site is behind
+# Cloudflare Access: secrets CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET (a service token the Access policy allows).
 name: Deploy a Flutter web app
 
 on:
@@ -36,9 +37,16 @@ jobs:
           wranglerVersion: '4.145.0'
           command: deploy --tag ${{ github.sha }} --message "${{ github.repository }}@${{ github.sha }}"
       - name: Wait until the site serves the new build
+        env:
+          ACCESS_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          ACCESS_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: |
+          headers=()
+          if [ -n "$ACCESS_ID" ]; then
+            headers=(-H "CF-Access-Client-Id: $ACCESS_ID" -H "CF-Access-Client-Secret: $ACCESS_SECRET")
+          fi
           for _ in $(seq 1 30); do
-            served=$(curl -fsS "${{ inputs.site-url }}/version.txt" || true)
+            served=$(curl -fsS "${headers[@]}" "${{ inputs.site-url }}/version.txt" || true)
             if [ "$served" = "${{ github.sha }}" ]; then echo "live: $served"; exit 0; fi
             echo "waiting (got '${served}')"; sleep 5
           done

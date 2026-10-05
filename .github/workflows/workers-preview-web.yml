@@ -2,7 +2,7 @@
 # (`wrangler versions upload --preview-alias`): https://<alias>-<worker>.<subdomain>.workers.dev serves it, and the
 # Worker's production version is not touched. Then checks the preview serves the new build.
 # The calling repo needs: the GitHub environment (default `development`) with secret CLOUDFLARE_API_TOKEN and variables
-# CLOUDFLARE_ACCOUNT_ID and API_URL (compiled into the build); if the previews are behind Cloudflare Access, secrets
+# CLOUDFLARE_ACCOUNT_ID and API_URL (compiled into the build); if the previews are ever put behind Cloudflare Access, secrets
 # CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET (a service token the Access policy allows). Callers pass
 # `secrets: inherit`.
 name: Preview a Flutter web app
@@ -103,7 +103,7 @@ jobs:
           body="${marker}
           **Preview (${WORKER}):** ${URL}
 
-          Commit ${{ github.sha }}. Behind Cloudflare Access: log in with an allowed email."
+          Commit ${{ github.sha }}."
           id=$(gh api "repos/${{ github.repository }}/issues/${PR}/comments" --paginate \
             --jq "[.[] | select(.body | startswith(\"${marker}\"))][0].id // empty")
           if [ -n "$id" ]; then
