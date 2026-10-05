@@ -1,7 +1,7 @@
 # Deploys a Rust Cloudflare Worker (workers-rs) from the calling repo, waits until its health endpoint reports the
-# deployed commit, then moves the repo's `live` tag to that commit.
-# The calling repo needs: environment `production` with secret CLOUDFLARE_API_TOKEN, variable CLOUDFLARE_ACCOUNT_ID,
-# and `permissions: contents: write` on the calling job (to move the tag).
+# deployed commit, then (production) moves the repo's `live` tag to that commit.
+# The calling repo needs: the GitHub environment (default `production`) with secret CLOUDFLARE_API_TOKEN, variable
+# CLOUDFLARE_ACCOUNT_ID, and `permissions: contents: write` on the calling job when `move-live` is true.
 name: Deploy a Rust Worker
 
 on:
@@ -11,11 +11,23 @@ on:
         description: 'The deployed Worker''s health URL; it must answer {"version": "<commit>"}.'
         type: string
         required: true
+      environment:
+        description: The GitHub environment holding the deploy token.
+        type: string
+        default: production
+      wrangler-env:
+        description: A wrangler environment (`--env`) from wrangler.jsonc; empty = the top-level (production) Worker.
+        type: string
+        default: ''
+      move-live:
+        description: Move the `live` tag to the deployed commit (production only).
+        type: boolean
+        default: true
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: production
+    environment: ${{ inputs.environment }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -30,7 +42,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: '4.145.0'
-          command: deploy --tag ${{ github.sha }} --message "${{ github.repository }}@${{ github.sha }}"
+          command: deploy ${{ inputs.wrangler-env && format('--env {0}', inputs.wrangler-env) || '' }} --tag ${{ github.sha }} --message "${{ github.repository }}@${{ github.sha }}"
       - name: Wait until the new version answers
         run: |
           for _ in $(seq 1 30); do
@@ -40,6 +52,7 @@ jobs:
           done
           echo "::error::${{ inputs.health-url }} never reported ${{ github.sha }}"; exit 1
       - name: Move the live tag
+        if: ${{ inputs.move-live }}
         run: |
           git tag -f live "${{ github.sha }}"
           git push -f origin refs/tags/live

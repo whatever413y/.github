@@ -1,0 +1,113 @@
+# Builds a Flutter web app and uploads it as a preview of the calling repo's static-assets Worker
+# (`wrangler versions upload --preview-alias`): https://<alias>-<worker>.<subdomain>.workers.dev serves it, and the
+# Worker's production version is not touched. Then checks the preview serves the new build.
+# The calling repo needs: the GitHub environment (default `development`) with secret CLOUDFLARE_API_TOKEN and variables
+# CLOUDFLARE_ACCOUNT_ID and API_URL (compiled into the build); if the previews are behind Cloudflare Access, secrets
+# CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET (a service token the Access policy allows). Callers pass
+# `secrets: inherit`.
+name: Preview a Flutter web app
+
+on:
+  workflow_call:
+    inputs:
+      alias:
+        description: 'The preview alias: lowercase letters, digits and dashes, starting with a letter (e.g. development, pr-12).'
+        type: string
+        required: true
+      worker:
+        description: The Worker's name (as in wrangler.jsonc).
+        type: string
+        required: true
+      subdomain:
+        description: The account's workers.dev subdomain.
+        type: string
+        required: true
+      environment:
+        description: The GitHub environment holding the token and API_URL.
+        type: string
+        default: development
+      pr-number:
+        description: 'When set, posts (or updates) one comment with the preview link on that pull request; the calling job needs `pull-requests: write`.'
+        type: number
+        default: 0
+    outputs:
+      url:
+        description: The preview's URL.
+        value: ${{ jobs.preview.outputs.url }}
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ steps.url.outputs.url }}
+    outputs:
+      url: ${{ steps.url.outputs.url }}
+    steps:
+      - name: Preview URL
+        id: url
+        env:
+          ALIAS: ${{ inputs.alias }}
+          WORKER: ${{ inputs.worker }}
+          SUBDOMAIN: ${{ inputs.subdomain }}
+        run: |
+          if ! [[ "$ALIAS" =~ ^[a-z][a-z0-9-]*$ ]] || [ $(( ${#ALIAS} + 1 + ${#WORKER} )) -gt 63 ]; then
+            echo "::error::invalid preview alias '$ALIAS'"; exit 1
+          fi
+          echo "url=https://${ALIAS}-${WORKER}.${SUBDOMAIN}.workers.dev" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Build
+        env:
+          API_URL: ${{ vars.API_URL }}
+        run: |
+          test -n "$API_URL" || { echo "::error::The variable API_URL is not set"; exit 1; }
+          flutter build web --release --dart-define=API_URL="$API_URL"
+          echo "${{ github.sha }}" > build/web/version.txt
+      - name: Upload the preview
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: '4.145.0'
+          command: versions upload --preview-alias ${{ inputs.alias }} --tag ${{ github.sha }} --message "${{ github.repository }}@${{ github.sha }} (${{ inputs.alias }})"
+      - name: Wait until the preview serves the new build
+        env:
+          URL: ${{ steps.url.outputs.url }}
+          ACCESS_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          ACCESS_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          headers=()
+          if [ -n "$ACCESS_ID" ]; then
+            headers=(-H "CF-Access-Client-Id: $ACCESS_ID" -H "CF-Access-Client-Secret: $ACCESS_SECRET")
+          fi
+          for _ in $(seq 1 30); do
+            served=$(curl -fsS "${headers[@]}" "$URL/version.txt" || true)
+            if [ "$served" = "${{ github.sha }}" ]; then echo "preview: $URL"; exit 0; fi
+            echo "waiting (got '${served}')"; sleep 5
+          done
+          echo "::error::$URL never served ${{ github.sha }}"; exit 1
+      - name: Comment the link on the pull request
+        if: ${{ inputs.pr-number > 0 }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ inputs.pr-number }}
+          URL: ${{ steps.url.outputs.url }}
+          WORKER: ${{ inputs.worker }}
+        run: |
+          marker="<!-- preview:${WORKER} -->"
+          body="${marker}
+          **Preview (${WORKER}):** ${URL}
+
+          Commit ${{ github.sha }}. Behind Cloudflare Access: log in with an allowed email."
+          id=$(gh api "repos/${{ github.repository }}/issues/${PR}/comments" --paginate \
+            --jq "[.[] | select(.body | startswith(\"${marker}\"))][0].id // empty")
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/${id}" -f body="$body" > /dev/null
+          else
+            gh api "repos/${{ github.repository }}/issues/${PR}/comments" -f body="$body" > /dev/null
+          fi
