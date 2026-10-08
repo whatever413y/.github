@@ -2,7 +2,7 @@
 # (`wrangler versions upload --preview-alias`): https://<alias>-<worker>.<subdomain>.workers.dev serves it, and the
 # Worker's production version is not touched. Then checks the preview serves the new build.
 # The calling repo needs: the GitHub environment (default `development`) with secret CLOUDFLARE_API_TOKEN and variables
-# CLOUDFLARE_ACCOUNT_ID and API_URL (compiled into the build); if the previews are ever put behind Cloudflare Access, secrets
+# CLOUDFLARE_ACCOUNT_ID, API_URL and TURNSTILE_SITE_KEY (compiled into the build); if the previews are ever put behind Cloudflare Access, secrets
 # CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET (a service token the Access policy allows). Callers pass
 # `secrets: inherit`.
 name: Preview a Flutter web app
@@ -64,9 +64,11 @@ jobs:
       - name: Build
         env:
           API_URL: ${{ vars.API_URL }}
+          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
         run: |
           test -n "$API_URL" || { echo "::error::The variable API_URL is not set"; exit 1; }
-          flutter build web --release --dart-define=API_URL="$API_URL"
+          test -n "$TURNSTILE_SITE_KEY" || { echo "::error::The variable TURNSTILE_SITE_KEY is not set"; exit 1; }
+          flutter build web --release --dart-define=API_URL="$API_URL" --dart-define=TURNSTILE_SITE_KEY="$TURNSTILE_SITE_KEY"
           echo "${{ github.sha }}" > build/web/version.txt
       - name: Upload the preview
         uses: cloudflare/wrangler-action@v4

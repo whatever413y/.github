@@ -1,7 +1,8 @@
 # Builds a Flutter web app and deploys it as a static-assets Cloudflare Worker (the repo's wrangler.jsonc), checks
 # the site serves the new build, then moves the repo's `live` tag to the commit.
-# The calling repo needs: environment `production` with secret CLOUDFLARE_API_TOKEN, variables CLOUDFLARE_ACCOUNT_ID
-# and API_URL (compiled into the build), and `permissions: contents: write` on the calling job. If the site is behind
+# The calling repo needs: environment `production` with secret CLOUDFLARE_API_TOKEN, variables CLOUDFLARE_ACCOUNT_ID,
+# API_URL and TURNSTILE_SITE_KEY (compiled into the build; the site key is public), and `permissions: contents: write`
+# on the calling job. If the site is behind
 # Cloudflare Access: secrets CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET (a service token the Access policy allows).
 name: Deploy a Flutter web app
 
@@ -27,7 +28,8 @@ jobs:
       - name: Build
         run: |
           test -n "${{ vars.API_URL }}" || { echo "::error::The repo variable API_URL is not set"; exit 1; }
-          flutter build web --release --dart-define=API_URL=${{ vars.API_URL }}
+          test -n "${{ vars.TURNSTILE_SITE_KEY }}" || { echo "::error::The repo variable TURNSTILE_SITE_KEY is not set"; exit 1; }
+          flutter build web --release --dart-define=API_URL=${{ vars.API_URL }} --dart-define=TURNSTILE_SITE_KEY=${{ vars.TURNSTILE_SITE_KEY }}
           echo "${{ github.sha }}" > build/web/version.txt
       - name: Deploy
         uses: cloudflare/wrangler-action@v4
